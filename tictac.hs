@@ -1,3 +1,5 @@
+module TicTacToeBots (Board, BoardInfo, Bot) where
+
 import Data.Bits
 import Data.Word
 import Data.List
@@ -16,8 +18,9 @@ b6 = [[1,0,2],[2,1,0],[0,0,1]] :: Board
 
 type Board = [[Int]]
 data BoardInfo = BoardInfo {legalMoves :: [Board], boardNum :: Int, winner :: Int} deriving Show
-type Player = [[Word16]]
+type Bot = [[Word16]]
 type Turn = Int
+type BoardIndex = Int
 
 boardMaps = map (M.fromList . concat . map allPerms . getInfo) $ pieces
     where
@@ -103,12 +106,32 @@ allRotations b = nub . map ($b) $ [i . j | i <- rotations, j <- reflections]
         r = transpose . map reverse
         m = map reverse
 
-takeTurn :: Player -> Board -> Turn -> Board
-takeTurn p b t = bs !! (pMove)
-    where
-        info@(BoardInfo bs n w) = M.lookup b (boardMaps !! t)
-        pMove = playerLookup p t n
+-- Two versions - takeTurn' is faster, but requires
+-- the turn as an arument. Used for bot tournaments
+-- mostly. It also returns the current winner for
+-- speed (0 is nobody)
+takeTurn :: Bot -> Board -> Board
+takeTurn bot b = fst $ takeTurn' bot b (9 - (count b 0))
 
--- Still need to write
-playerLookup p t n = 0
-                      
+takeTurn' :: Bot -> Board -> Turn -> (Board, Int)
+takeTurn' bot b t = (bs !! (bMove), w)
+    where
+        (BoardInfo bs n w) = (boardMaps !! t) M.! b
+        bMove = botMoveLookup bot t n
+
+-- Get the choice of move for the bot,
+-- takes the turn as a paramete
+botMoveLookup :: Bot -> Turn -> BoardIndex -> Int
+botMoveLookup bot t n = (changeBase modulus chunk) !! remainder
+    where
+        chunk = fromIntegral ((bot !! t) !! quotient)
+        quotient = div n numInWord
+        remainder = mod n numInWord
+        modulus = (9 - t)
+        numInWord = floor . (/) 16 . logBase 2 $ fromIntegral modulus
+        changeBase :: (Integral a) => a -> a -> [a]
+        changeBase base 0 = repeat 0
+        changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
+            where
+                powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
+
