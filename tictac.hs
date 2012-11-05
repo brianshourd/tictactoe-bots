@@ -1,11 +1,12 @@
 module TicTacToeBots (Board, BoardInfo, Bot) where
 
 import Data.Bits
-import Data.Word
-import Data.List
 import Data.Function (on)
-import Data.Maybe
+import Data.List
 import qualified Data.Map as M
+import Data.Maybe
+import Data.Word
+import System.Random
 
 -- Examples
 b0 = [[0,0,0],[0,0,0],[0,0,0]] :: Board
@@ -16,11 +17,43 @@ b4 = [[1,1,1],[2,0,0],[0,2,0]] :: Board
 b5 = [[2,0,0],[2,1,1],[2,0,1]] :: Board
 b6 = [[1,0,2],[2,1,0],[0,0,1]] :: Board
 
+randBots = map (fst . (\x -> random (mkStdGen x) :: (Bot,StdGen))) [1..]
+
 type Board = [[Int]]
-data BoardInfo = BoardInfo {legalMoves :: [Board], boardNum :: Int, winner :: Int} deriving Show
-type Bot = [[Word16]]
-type Turn = Int
 type BoardIndex = Int
+newtype Bot = Bot [[Word16]] deriving (Show, Eq)
+type Turn = Int
+data BoardInfo = BoardInfo {legalMoves :: [Board], boardNum :: Int, winner :: Int} deriving Show
+
+instance Random Bot where
+    --random :: RandomGen g => g -> (Bot,g)
+    random g = (\(l,gen) -> (Bot (reverse l), gen)) . foldl buildBot ([],g) $ zip numWords maxSize
+        where
+            numInWord = map (floor . (/) 16 . logBase 2 . (-) 9) [0..7]
+            numWords = [1,1,3,7,18,20,19,6] :: [Int]
+            maxSize = zipWith (\x y -> (9-x)^y) [0..7] numInWord :: [Int]
+            getSomeRands :: RandomGen g => Int -> Int -> g -> ([Word16],g)
+            getSomeRands 0 _ gen = ([],gen)
+            getSomeRands howMany size gen = ((fromIntegral r):list,retGen)
+                where
+                    (r,newGen) = randomR (0,size) gen
+                    (list,retGen) = getSomeRands (howMany - 1) size newGen
+            buildBot :: RandomGen g => ([[Word16]],g) -> (Int, Int) -> ([[Word16]],g)
+            buildBot (list,gen) (n,x) = (next:list, newGen)
+                where
+                    (next,newGen) = getSomeRands n x gen
+
+    randomR _ g = random g
+
+allRotations :: Board -> [Board]
+allRotations b = nub . map ($b) $ [i . j | i <- rotations, j <- reflections]
+    where
+        rotations :: [Board -> Board]
+        rotations = take 4 . iterate (.r) $ id
+        reflections :: [Board -> Board]
+        reflections = take 2 . iterate (.m) $ id
+        r = transpose . map reverse
+        m = map reverse
 
 boardMaps = map (M.fromList . concat . map allPerms . getInfo) $ pieces
     where
@@ -44,28 +77,21 @@ boardMaps = map (M.fromList . concat . map allPerms . getInfo) $ pieces
                 m = map reverse
                 r = transpose . map reverse
 
---printBoard :: Board -> String
-printBoard b = concat . intersperse "\n" . intersperse "-+-+-" . map (\[x,y,z] -> (show x) ++ "|" ++ (show y) ++ "|" ++ (show z)) $ b
-
-turn :: Board -> Either String Int
-turn b = case ((count b 1) - (count b 2)) of
-              0 -> Right 1
-              1 -> Right 2
-              other -> Left "Nobody"
-
--- Returns Left "Nobody", Left "Both", or
--- Right p where p won
-hasWon :: Board -> Either String Int
-hasWon b = case ((didWin 1, didWin 2)) of
-                (True, False) -> Right 1
-                (False, True) -> Right 2
-                (False, False) -> Left "Nobody"
-                (True, True) -> Left "Both"
+-- Get the choice of move for the bot,
+-- takes the turn as a paramete
+botMoveLookup :: Bot -> Turn -> BoardIndex -> Int
+botMoveLookup (Bot bot) t n = (changeBase modulus chunk) !! remainder
     where
-        didWin p = any ($p) [rowWin b, colWin b, diagWin b]
-        rowWin b p = or . map (all (==p)) $ b
-        colWin b p = rowWin (transpose b) p
-        diagWin b p = (all (==p) . map (\n -> b !! n !! n) $ [0,1,2]) || (all (==p) . map (\n -> b !! n !! (2 - n)) $ [0,1,2])
+        chunk = fromIntegral ((bot !! t) !! quotient)
+        quotient = div n numInWord
+        remainder = mod n numInWord
+        modulus = (9 - t)
+        numInWord = floor . (/) 16 . logBase 2 $ fromIntegral modulus
+        changeBase :: (Integral a) => a -> a -> [a]
+        changeBase base 0 = repeat 0
+        changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
+            where
+                powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
 
 count :: Board -> Int -> Int
 count b n = length . filter (==n) . concat $ b
@@ -82,29 +108,45 @@ doMove b p n = unflatten . insert p n . flatten $ b
         insert p n l = let (begin,end) = splitAt n l in
             begin ++ [p] ++ (tail end)
 
-isLegalMove :: Board -> Int -> Bool
-isLegalMove b n = ((concat b) !! n) == 0
-
-getNextBoards :: Board -> [Board]
-getNextBoards b = case (hasWon b, turn b) of
-                       (Left "Nobody", Right p) -> map (doMove b p) . filter (isLegalMove b) $ [0..8]
-                       other -> []
-
 getAllBoards :: [Board]
 getAllBoards = concat . take 9 . iterate following $ [b0]
     where
         following bs = nubBy (rEqual) . concat . map getNextBoards $ bs
         rEqual b b' = elem b (allRotations b')
 
-allRotations :: Board -> [Board]
-allRotations b = nub . map ($b) $ [i . j | i <- rotations, j <- reflections]
+getNextBoards :: Board -> [Board]
+getNextBoards b = case (hasWon b, turn b) of
+                       (Left "Nobody", Right p) -> map (doMove b p) . filter (isLegalMove b) $ [0..8]
+                       other -> []
+
+-- Returns Left "Nobody", Left "Both", or
+-- Right p where p won
+hasWon :: Board -> Either String Int
+hasWon b = case ((didWin 1, didWin 2)) of
+                (True, False) -> Right 1
+                (False, True) -> Right 2
+                (False, False) -> Left "Nobody"
+                (True, True) -> Left "Both"
     where
-        rotations :: [Board -> Board]
-        rotations = take 4 . iterate (.r) $ id
-        reflections :: [Board -> Board]
-        reflections = take 2 . iterate (.m) $ id
-        r = transpose . map reverse
-        m = map reverse
+        didWin p = any ($p) [rowWin b, colWin b, diagWin b]
+        rowWin b p = or . map (all (==p)) $ b
+        colWin b p = rowWin (transpose b) p
+        diagWin b p = (all (==p) . map (\n -> b !! n !! n) $ [0,1,2]) || (all (==p) . map (\n -> b !! n !! (2 - n)) $ [0,1,2])
+
+isLegalMove :: Board -> Int -> Bool
+isLegalMove b n = ((concat b) !! n) == 0
+
+printBoard :: Board -> String
+printBoard b = concat . intersperse "\n" . intersperse "-+-+-" . map (\[x,y,z] -> (show x) ++ "|" ++ (show y) ++ "|" ++ (show z)) $ b
+
+runGame :: Bot -> Bot -> Maybe Bot
+runGame bot1 bot2 = runGame' bot1 bot2 [[0,0,0],[0,0,0],[0,0,0]] 0
+    where
+        runGame' _ _ _ 9 = Nothing
+        runGame' p1 p2 board turn = case (hasWon board) of
+            Left _ -> runGame' p2 p1 (takeTurn p1 board) (turn + 1)
+            Right 1 -> Just bot1
+            Right 2 -> Just bot2
 
 -- Two versions - takeTurn' is faster, but requires
 -- the turn as an arument. Used for bot tournaments
@@ -116,22 +158,13 @@ takeTurn bot b = fst $ takeTurn' bot b (9 - (count b 0))
 takeTurn' :: Bot -> Board -> Turn -> (Board, Int)
 takeTurn' bot b t = (bs !! (bMove), w)
     where
-        (BoardInfo bs n w) = (boardMaps !! t) M.! b
+        thisBoardInfo@(BoardInfo bs n _) = (boardMaps !! t) M.! b
         bMove = botMoveLookup bot t n
+        newBoard = bs !! bMove
+        newBoardInfo@(BoardInfo _ _ w) = (boardMaps !! (t+1)) M.! newBoard
 
--- Get the choice of move for the bot,
--- takes the turn as a paramete
-botMoveLookup :: Bot -> Turn -> BoardIndex -> Int
-botMoveLookup bot t n = (changeBase modulus chunk) !! remainder
-    where
-        chunk = fromIntegral ((bot !! t) !! quotient)
-        quotient = div n numInWord
-        remainder = mod n numInWord
-        modulus = (9 - t)
-        numInWord = floor . (/) 16 . logBase 2 $ fromIntegral modulus
-        changeBase :: (Integral a) => a -> a -> [a]
-        changeBase base 0 = repeat 0
-        changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
-            where
-                powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
-
+turn :: Board -> Either String Int
+turn b = case ((count b 1) - (count b 2)) of
+              0 -> Right 1
+              1 -> Right 2
+              other -> Left "Nobody"
