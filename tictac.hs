@@ -87,11 +87,23 @@ botMoveLookup (Bot bot) t n = (changeBase modulus chunk) !! remainder
         remainder = mod n numInWord
         modulus = (9 - t)
         numInWord = floor . (/) 16 . logBase 2 $ fromIntegral modulus
-        changeBase :: (Integral a) => a -> a -> [a]
-        changeBase base 0 = repeat 0
-        changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
-            where
-                powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
+
+-- The Float parameter indicates which (if any) bot should
+-- be preferred. 0 returns bot1, 1 returns bot2, .5 equally
+-- mixes both.
+breedBots :: Bot -> Bot -> StdGen -> Float -> Bot
+breedBots (Bot bot1) (Bot bot2) g x = Bot $ map (zipWith chooser (randoms g :: [Float])) (zipWith (\xs ys -> zip xs ys) bot1 bot2)
+                                                                        -- ^ problem, need new generators!
+    where
+        chooser a (w1, w2) = case (x `compare` a) of
+                                  LT -> w1
+                                  GT -> w2
+
+changeBase :: (Integral a) => a -> a -> [a]
+changeBase base 0 = repeat 0
+changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
+    where
+        powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
 
 count :: Board -> Int -> Int
 count b n = length . filter (==n) . concat $ b
@@ -136,8 +148,24 @@ hasWon b = case ((didWin 1, didWin 2)) of
 isLegalMove :: Board -> Int -> Bool
 isLegalMove b n = ((concat b) !! n) == 0
 
+-- This mutates by breeding the bot with a
+-- random bot. The Float parameter is the amount of
+-- mutation you want - 1.0: all random, 0.0: no mutation
+mutateBot :: Bot -> StdGen -> Float -> Bot
+mutateBot bot g x = let (g1,g2) = split g in breedBots bot (fst $ random g1) g2 x
+
+applyToSome :: (Random a) => (a -> a) -> StdGen -> [a] -> Int -> [a]
+applyToSome f g list modulus = map apply . zip (randoms g) $ list
+    where
+        apply (r,x) = case (r `mod` modulus) of
+                         0 -> f x
+                         other -> x
+
 printBoard :: Board -> String
 printBoard b = concat . intersperse "\n" . intersperse "-+-+-" . map (\[x,y,z] -> (show x) ++ "|" ++ (show y) ++ "|" ++ (show z)) $ b
+
+randomBot :: StdGen -> Bot
+randomBot g = fst (random g :: (Bot,StdGen))
 
 runGame :: Bot -> Bot -> Maybe Bot
 runGame bot1 bot2 = runGame' bot1 bot2 [[0,0,0],[0,0,0],[0,0,0]] 0
