@@ -21,7 +21,17 @@ instance Entity Bot Integer () () Identity where
 
     -- score: how closely does the given number match the criteria?
     -- NOTE: lower is better
-    scorePop _ _ bots = return $ Just $ map Just [1..]
+    scorePop _ _ bots = return $ Just $ map totalGrade bots
+        where
+            pairs = [(x,y) | x <- bots, y <- bots]
+            totalGrade x = Just $ sum $ map (grade x) bots
+
+            -- grades x against y, remember that lower is better
+            grade x y = case (runGame x y) of
+                Nothing -> 0 -- Points gained in the case of a tie
+                Just bot -> case (bot == x) of
+                                 True -> -2 -- x won
+                                 False -> 1 -- x lost
 
 main :: IO() 
 main = do
