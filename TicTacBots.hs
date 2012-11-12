@@ -98,6 +98,7 @@ breedBots (Bot bot1) (Bot bot2) g x = Bot $ zipOver chooser (zipWith (\xs ys -> 
         chooser (w1, w2) a = case (x `compare` a) of
             LT -> w1
             GT -> w2
+            EQ -> w2
         zipOver :: (a -> b -> c) -> [[a]] -> [b] -> [[c]]
         zipOver f xxs ys = fst $ foldr (\xs (xxs,ys) -> (let (list, rest) = zipOver' f xs ys [] in (list:xxs, rest))) ([],ys) xxs
         zipOver' :: (a -> b -> c) -> [a] -> [b] -> [c] -> ([c], [b])
