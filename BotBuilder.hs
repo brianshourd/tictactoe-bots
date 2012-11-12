@@ -46,7 +46,8 @@ main = do
                     False -- whether or not to use checkpointing
                     False -- don't rescore archive in each generation
 
-        g <- getStdGen -- random generator
+        -- g <- getStdGen -- random generator
+        let g = mkStdGen 0 -- for repeateability
 
         -- Do the evolution!
         -- two last parameters (pool for generating new entities and 
