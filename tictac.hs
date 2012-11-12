@@ -92,12 +92,17 @@ botMoveLookup (Bot bot) t n = (changeBase modulus chunk) !! remainder
 -- be preferred. 0 returns bot1, 1 returns bot2, .5 equally
 -- mixes both.
 breedBots :: Bot -> Bot -> StdGen -> Float -> Bot
-breedBots (Bot bot1) (Bot bot2) g x = Bot $ map (zipWith chooser (randoms g :: [Float])) (zipWith (\xs ys -> zip xs ys) bot1 bot2)
-                                                                        -- ^ problem, need new generators!
+breedBots (Bot bot1) (Bot bot2) g x = Bot $ zipOver chooser (zipWith (\xs ys -> zip xs ys) bot1 bot2) (randoms g :: [Float])
     where
-        chooser a (w1, w2) = case (x `compare` a) of
-                                  LT -> w1
-                                  GT -> w2
+        chooser :: (a, a) -> Float -> a
+        chooser (w1, w2) a = case (x `compare` a) of
+            LT -> w1
+            GT -> w2
+        zipOver :: (a -> b -> c) -> [[a]] -> [b] -> [[c]]
+        zipOver f xxs ys = fst $ foldr (\xs (xxs,ys) -> (let (list, rest) = zipOver' f xs ys [] in (list:xxs, rest))) ([],ys) xxs
+        zipOver' :: (a -> b -> c) -> [a] -> [b] -> [c] -> ([c], [b])
+        zipOver' f (x:[]) (y:ys) acc = (reverse $ (f x y):acc, ys)
+        zipOver' f (x:xs) (y:ys) acc = zipOver' f xs ys ((f x y):acc)
 
 changeBase :: (Integral a) => a -> a -> [a]
 changeBase base 0 = repeat 0
