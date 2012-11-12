@@ -21,7 +21,7 @@ randBots = map (fst . (\x -> random (mkStdGen x) :: (Bot,StdGen))) [1..]
 
 type Board = [[Int]]
 type BoardIndex = Int
-newtype Bot = Bot [[Word16]] deriving (Show, Eq)
+newtype Bot = Bot [[Word16]] deriving (Show, Eq, Ord, Read)
 type Turn = Int
 data BoardInfo = BoardInfo {legalMoves :: [Board], boardNum :: Int, winner :: Int} deriving Show
 
