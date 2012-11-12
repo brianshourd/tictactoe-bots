@@ -1,4 +1,4 @@
-module TicTacToeBots (Board, BoardInfo, Bot) where
+module TicTacBots (Board, Bot, takeTurn, breedBots, randomBot, runGame, mutateBot) where
 
 import Data.Bits
 import Data.Function (on)
