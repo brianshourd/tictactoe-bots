@@ -3,12 +3,17 @@
 
 import TicTacBots
 import Control.Monad.Identity (Identity(..))
-import Data.List (foldl')
-import System.Random (mkStdGen, random, getStdGen)
+import Data.List (sortBy)
+import System.Random (mkStdGen, random, getStdGen, randoms)
+import Data.Function (on)
 
-import GA (Entity(..), GAConfig(..), evolve)
+import GA 
 
-instance Entity Bot Integer () () Identity where
+-- TournamentBot is used for keeping track of the position (2nd piece) and
+-- score (3rd piece)
+data TournamentBot = TournamentBot {tBot :: Bot, tPos :: Integer, tScore :: Integer}
+
+instance Entity Bot Integer () () IO where
  
     -- generate a random entity, i.e. a random integer value 
     genRandom _ seed = return $ randomBot (mkStdGen seed)
@@ -21,23 +26,30 @@ instance Entity Bot Integer () () Identity where
 
     -- score: how closely does the given number match the criteria?
     -- NOTE: lower is better
-    scorePop _ _ bots = return $ Just $ map totalGrade bots
+    scorePop _ _ bots = return $ Just $ tournament bots
         where
-            pairs = [(x,y) | x <- bots, y <- bots]
-            totalGrade x = Just $ sum $ map (grade x) bots
+            tournament :: [Bot] -> [Maybe Integer]
+            tournament bots = map (Just . tScore) . sortBy (compare `on` tPos) . goRounds (ceiling . logBase 2 . fromIntegral . length $ bots) $ (zipWith (\b o -> TournamentBot b o 0) bots $ [1..]) 
 
-            -- grades x against y, remember that lower is better
-            grade x y = case (runGame x y) of
-                Nothing -> 0 -- Points gained in the case of a tie
-                Just bot -> case (bot == x) of
-                                 True -> -2 -- x won
-                                 False -> 1 -- x lost
+            goRounds :: Int -> [TournamentBot] -> [TournamentBot]
+            goRounds n tbots = (iterate (nextRound . sortBy (compare `on` tScore)) tbots) !! n
+
+            nextRound :: [TournamentBot] -> [TournamentBot]
+            nextRound (b1:b2:bs) = (doMatch b1 b2) ++ (nextRound bs)
+            nextRound _ = []
+
+            doMatch :: TournamentBot -> TournamentBot -> [TournamentBot]
+            doMatch bot1@(TournamentBot b1 o1 s1) bot2@(TournamentBot b2 o2 s2) = case (runGame b1 b2) of
+                Nothing -> [bot1,bot2]
+                Just bot -> case (bot == b1) of
+                    True -> [TournamentBot b1 o1 (s1-2), TournamentBot b2 o2 (s2+2)]
+                    False -> [TournamentBot b1 o1 (s1+2), TournamentBot b2 o2 (s2-2)]
 
 main :: IO() 
 main = do
         let cfg = GAConfig 
-                    128 -- population size
-                    20 -- archive size (best entities to keep track of)
+                    40 -- population size
+                    10 -- archive size (best entities to keep track of)
                     100 -- maximum number of generations
                     0.8 -- crossover rate (% of entities by crossover)
                     0.2 -- mutation rate (% of entities by mutation)
@@ -52,7 +64,7 @@ main = do
         -- Do the evolution!
         -- two last parameters (pool for generating new entities and 
         -- extra data to score an entity) are unused in this example
-        let (Identity es) = evolve g cfg () ()
-            e = snd $ head es :: Bot
+        es <- evolveVerbose g cfg () ()
+        let e = snd $ head es :: Bot
         
         putStrLn $ "best entity: " ++ (show e)
