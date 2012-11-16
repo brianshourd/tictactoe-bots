@@ -1,3 +1,5 @@
+module BotBuilder (getBestBot) where
+
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
