@@ -1,20 +1,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-import TicTacBots
 import Control.Monad.Identity (Identity(..))
 import Data.List (sortBy)
-import System.Random (mkStdGen, random, getStdGen, randoms)
+import System.Random 
 import Data.Function (on)
 
 import GA 
+import TicTacBots
+import TicTacBase
 
 -- TournamentBot is used for keeping track of the position (2nd piece) and
 -- score (3rd piece)
 data TournamentBot = TournamentBot {tBot :: Bot, tPos :: Integer, tScore :: Integer}
 
-instance Entity Bot Integer () () IO where
- 
+instance Entity Bot Integer () () Identity where
     -- generate a random entity, i.e. a random integer value 
     genRandom _ seed = return $ randomBot (mkStdGen seed)
 
@@ -45,26 +45,24 @@ instance Entity Bot Integer () () IO where
                     True -> [TournamentBot b1 o1 (s1-2), TournamentBot b2 o2 (s2+2)]
                     False -> [TournamentBot b1 o1 (s1+2), TournamentBot b2 o2 (s2-2)]
 
+-- Builds a GAConfig using the parameters as
+-- PopulationSize -> ArchiveSize -> MaxGenerations
+getBestBot :: Int -> Int -> Int -> StdGen -> Bot
+getBestBot popSize archSize numGens g = snd . head $ es
+    where
+        (Identity es) = evolve g cfg () ()
+        cfg = GAConfig
+                popSize
+                archSize
+                numGens
+                0.8
+                0.2
+                0.0
+                0.2
+                False
+                False
+
 main :: IO() 
 main = do
-        let cfg = GAConfig 
-                    40 -- population size
-                    10 -- archive size (best entities to keep track of)
-                    100 -- maximum number of generations
-                    0.8 -- crossover rate (% of entities by crossover)
-                    0.2 -- mutation rate (% of entities by mutation)
-                    0.0 -- parameter for crossover (not used here)
-                    0.2 -- parameter for mutation (% of replaced words)
-                    False -- whether or not to use checkpointing
-                    False -- don't rescore archive in each generation
-
-        -- g <- getStdGen -- random generator
-        let g = mkStdGen 0 -- for repeateability
-
-        -- Do the evolution!
-        -- two last parameters (pool for generating new entities and 
-        -- extra data to score an entity) are unused in this example
-        es <- evolveVerbose g cfg () ()
-        let e = snd $ head es :: Bot
-        
-        putStrLn $ "best entity: " ++ (show e)
+        g <- getStdGen
+        putStrLn $ "best entity: " ++ (show $ getBestBot 40 10 100 g)
