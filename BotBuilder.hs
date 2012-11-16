@@ -1,7 +1,7 @@
-module BotBuilder (getBestBot) where
-
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+
+module BotBuilder (getBestBot) where
 
 import Control.Monad.Identity (Identity(..))
 import Data.List (sortBy)
