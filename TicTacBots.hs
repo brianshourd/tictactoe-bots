@@ -3,7 +3,6 @@ module TicTacBots (Board, Bot, takeBotTurn, breedBots, randomBot, runGame, mutat
 import Data.Function (on)
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Word
 import System.Random
 
@@ -31,9 +30,9 @@ instance Random Bot where
                     (r,newGen) = randomR (0,size) gen
                     (list,retGen) = getSomeRands (howMany - 1) size newGen
             buildBot :: RandomGen g => ([[Word16]],g) -> (Int, Int) -> ([[Word16]],g)
-            buildBot (list,gen) (n,x) = (next:list, newGen)
+            buildBot (list,gen) (n,x) = (nextList:list, newGen)
                 where
-                    (next,newGen) = getSomeRands n x gen
+                    (nextList,newGen) = getSomeRands n x gen
 
     randomR _ g = random g
 
@@ -83,6 +82,10 @@ takeBotTurn :: Bot -> Board -> Board
 takeBotTurn bot b = fst $ takeBotTurn' bot b (9 - (count b 0))
 
 takeBotTurn' :: Bot -> Board -> Turn -> (Board, Int)
+takeBotTurn' _ b 8 = (map (map change0to1) b, 9)
+    where
+        change0to1 0 = 1
+        change0to1 x = x
 takeBotTurn' bot b t = (bs !! (bMove), w)
     where
         thisBoardInfo@(BoardInfo bs n _) = (boardMaps !! t) M.! b
@@ -108,6 +111,7 @@ allRotations b = nub . map ($b) $ [i . j | i <- rotations, j <- reflections]
 -- BoardInfo. Why? So that all of this is calculated up front, so that
 -- when it inevitably called lots of times for lots of bots, lookup is
 -- speedy.
+boardMaps :: [M.Map Board BoardInfo]
 boardMaps = map (M.fromList . concat . map allPerms . getInfo) $ pieces
     where
         pieces = map (map fst) . groupBy ((==) `on` snd) . sortBy (compare `on` snd) . map (\b -> (b, 9 - (count b 0))) $ getAllBoards
@@ -144,7 +148,7 @@ botMoveLookup (Bot bot) t n = (changeBase modulus chunk) !! remainder
 -- Utility function
 -- Ex: changeBase 10 2 -> [
 changeBase :: (Integral a) => a -> a -> [a]
-changeBase base 0 = repeat 0
+changeBase _ 0 = repeat 0
 changeBase base n = (fst . foldr (\x (qs,p) -> ((div p x):qs, mod p x)) ([],n) $ powers) ++ (repeat 0)
     where
         powers = map (base^) [0..(floor . logBase (fromIntegral base) $ (fromIntegral n))]
@@ -159,13 +163,5 @@ getAllBoards = concat . take 9 . iterate following $ [b0]
 getNextBoards :: Board -> [Board]
 getNextBoards b = case (hasWon b, turn b) of
                        (Left "Nobody", Right p) -> map (doMove b p) . filter (isLegalMove b) $ [0..8]
-                       other -> []
-
-applyToSome :: (Random a) => (a -> a) -> StdGen -> [a] -> Int -> [a]
-applyToSome f g list modulus = map apply . zip (randoms g) $ list
-    where
-        apply (r,x) = case (r `mod` modulus) of
-                         0 -> f x
-                         other -> x
-
+                       _ -> []
 
