@@ -1,6 +1,7 @@
 module TicTacBase (Board, count, doMove, hasWon, isLegalMove, printBoard, turn, tryMove) where
 
 import Data.List
+import Safe (atMay)
 
 -- =======================
 -- Data Structures
@@ -43,7 +44,7 @@ hasWon b = case (didWin 1, didWin 2) of
 -- Just checks whether or not the location on the board is a 0, and thus
 -- a legal move to make
 isLegalMove :: Board -> Int -> Bool
-isLegalMove b n = ((concat b) !! n) == 0
+isLegalMove b n = ((concat b) `atMay` n) == Just 0
 
 -- Format the board real nicely
 printBoard :: Board -> String

@@ -2,23 +2,39 @@ import TicTacBase
 import TicTacBots
 import BotBuilder
 import System.Random (random, getStdGen, newStdGen, StdGen)
+import Safe (readMay)
 
 makeBot :: IO Bot
 makeBot = do
-    putStr "Population Size: "
-    popSize <- getLine
-    putStr "Archive Size: "
-    archSize <- getLine
-    putStr "Number of Generations: "
-    maxGens <- getLine
+    (popSize, archSize, maxGens) <- getInput
 
     putStr "Building Bots..."
     g <- newStdGen
-    let bot = getBestBot (read popSize) (read archSize) (read maxGens) g
+    let bot = getBestBot popSize archSize maxGens g
     putStrLn "Done!"
     putStrLn $ show bot
 
-    return bot
+    return bot where
+        getInput = do
+            putStr "Population Size: "
+            popSize <- safeRead
+            putStr "Archive Size: "
+            archSize <- safeRead
+            putStr "Number of Generations: "
+            maxGens <- safeRead
+            
+            return (popSize, archSize, maxGens)
+        safeRead :: IO Int
+        safeRead = do
+            x <- fmap readMay $ getLine
+            case x of
+                Nothing -> do
+                    putStrLn "It needs to be a number!"
+                    safeRead
+                (Just n) | n > 0 -> return n
+                         | n <= 0 -> do
+                             putStrLn "No, a positive number!"
+                             safeRead
 
 playGame :: Bot -> IO ()
 playGame bot = do
@@ -37,7 +53,7 @@ playGame bot = do
             putStrLn $ printBoard b
             putStr "Your move: "
             n <- getLine
-            case tryMove b (read n) of
+            case readMay n >>= tryMove b of
                 Nothing -> do
                     putStrLn "Not allowed!"
                     takeTurnHuman b turn

@@ -37,7 +37,7 @@ instance Entity Bot Integer () () Identity where
             goRounds n tbots = (iterate (nextRound . sortBy (compare `on` tScore)) tbots) !! n
 
             nextRound :: [TournamentBot] -> [TournamentBot]
-            nextRound (b1:b2:bs) = (doMatch b1 b2) ++ (nextRound bs)
+            nextRound (b1:b2:bs) = ((\[x,y] -> doMatch y x) $ doMatch b1 b2) ++ (nextRound bs)
             nextRound _ = []
 
             doMatch :: TournamentBot -> TournamentBot -> [TournamentBot]
