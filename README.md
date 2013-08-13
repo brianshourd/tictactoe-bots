@@ -15,7 +15,7 @@ worked with a large space and a weak heuristic.
 This means that a bot is literally a collection of pairs - for every
 possible board state, it has knows which move it would make.
 
-Well, there are an awful lot of board states, so each bot is actually a
+Well, there are [an awful lot of board states](http://brianshourd.com/posts/2012-11-06-tilt-number-of-tic-tac-toe-boards.html), so each bot is actually a
 terrifically huge amount of data. In order to compress this down, a list
 of all possible board states is created up front, removing board states
 that are just reflections or rotations of other board states. Each board
